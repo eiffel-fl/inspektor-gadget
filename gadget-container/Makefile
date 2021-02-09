@@ -5,7 +5,7 @@ MINIKUBE ?= minikube
 CONTAINER_REPO ?= docker.io/kinvolk/gadget
 
 .PHONY: gadget-container-deps
-gadget-container-deps: ocihookgadget gadgettracermanager networkpolicyadvisor runchookslib
+gadget-container-deps: ocihookgadget gadgettracermanager networkpolicyadvisor runchookslib nrigadget
 
 .PHONY: build
 build: gadget-container-deps
@@ -51,6 +51,13 @@ ocihookgadget:
 runchookslib:
 	mkdir -p bin
 	gcc -Wall -o bin/runchooks.so -shared -fPIC hooks/runc/runchooks.c -ldl
+
+.PHONY: nrigadget
+nrigadget:
+	mkdir -p bin
+	GO111MODULE=on CGO_ENABLED=1 GOOS=linux go build \
+		-o bin/nrigadget \
+		./hooks/nri/main.go
 
 # minikube related
 minikube: docker-gadget/minikube-build docker-gadget/minikube-install

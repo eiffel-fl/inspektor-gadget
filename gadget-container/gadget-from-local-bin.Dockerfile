@@ -12,7 +12,7 @@ RUN set -ex; \
 	export DEBIAN_FRONTEND=noninteractive; \
 	apt-get update && \
 	apt-get install -y --no-install-recommends \
-		ca-certificates curl && \
+		ca-certificates curl jq && \
         rmdir /usr/src && ln -sf /host/usr/src /usr/src
 
 COPY entrypoint.sh /entrypoint.sh
@@ -39,5 +39,9 @@ COPY hooks/runc/add-hooks.jq /opt/hooks/runc/add-hooks.jq
 # cri-o
 COPY hooks/crio/gadget-prestart.json /opt/hooks/crio/gadget-prestart.json
 COPY hooks/crio/gadget-poststop.json /opt/hooks/crio/gadget-poststop.json
+
+# nri
+COPY bin/nrigadget /opt/hooks/nri/nrigadget
+COPY hooks/nri/conf.json /opt/hooks/nri/conf.json
 
 ## Hooks Ends
