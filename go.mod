@@ -2,6 +2,7 @@ module github.com/kinvolk/inspektor-gadget
 
 require (
 	github.com/Microsoft/go-winio v0.4.14 // indirect
+	github.com/cilium/ebpf v0.3.0
 	github.com/containerd/containerd v1.3.4 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200608131505-3aac5f0bbb5c+incompatible
@@ -23,6 +24,7 @@ require (
 	github.com/spf13/viper v1.3.2
 	github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2
 	github.com/weaveworks/tcptracer-bpf v0.0.0-20190731111909-cd53e7c84bac
+	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
 	google.golang.org/grpc v1.27.0
 	google.golang.org/protobuf v1.24.0
 	gotest.tools/v3 v3.0.2 // indirect
