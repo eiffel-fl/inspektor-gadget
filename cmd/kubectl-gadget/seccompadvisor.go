@@ -50,12 +50,20 @@ var seccompAdvisorListCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
+var (
+	outputMode string
+	seccompProfileName string
+)
+
 func init() {
 	// Add generic information.
 	rootCmd.AddCommand(seccompAdvisorCmd)
 	utils.AddCommonFlags(seccompAdvisorCmd, &params)
 
 	seccompAdvisorCmd.AddCommand(seccompAdvisorStartCmd)
+	seccompAdvisorStartCmd.PersistentFlags().StringVarP(&outputMode, "output-mode", "m", "Status", "The trace output mode, possibles values are ExternalResource or Status (default).")
+	seccompAdvisorStartCmd.PersistentFlags().StringVar(&seccompProfileName, "seccomp-profile-name", "", "The seccomp profile which will be created when using ExternalResource as value for --output-mode.")
+
 	seccompAdvisorCmd.AddCommand(seccompAdvisorStopCmd)
 	seccompAdvisorCmd.AddCommand(seccompAdvisorListCmd)
 }
@@ -70,7 +78,8 @@ func runSeccompAdvisorStart(cmd *cobra.Command, args []string) error {
 	config := &utils.TraceConfig{
 		GadgetName:      "seccomp",
 		Operation:       "start",
-		TraceOutputMode: "Status",
+		TraceOutputMode: outputMode,
+		TraceOutput:     seccompProfileName,
 		CommonFlags:     &params,
 	}
 
@@ -93,7 +102,11 @@ func runSeccompAdvisorStop(cmd *cobra.Command, args []string) error {
 
 	callback := func(results []gadgetv1alpha1.Trace) error {
 		for _, i := range results {
-			fmt.Printf("%v\n", i.Status.Output)
+			if i.Spec.OutputMode == "ExternalResource" {
+				fmt.Printf("Succesfully created seccomp profile %q!\n", i.Spec.Output)
+			} else {
+				fmt.Printf("%v\n", i.Status.Output)
+			}
 		}
 
 		return nil

@@ -68,6 +68,11 @@ type TraceConfig struct {
 	// But other gadgets, like dns, can contain output only in Started state.
 	TraceOutputState string
 
+	// TraceOutput is either the name of the file when TraceOutputMode is File or
+	// the name of the external resource when TraceOutputMode is ExternalResource.
+	// Otherwise, its value is ignored.
+	TraceOutput string
+
 	// CommonFlags is used to hold parameters given on the command line interface.
 	CommonFlags *CommonFlags
 }
@@ -298,6 +303,8 @@ func CreateTrace(config *TraceConfig) (string, error) {
 				"podName":       config.CommonFlags.Podname,
 				"containerName": config.CommonFlags.Containername,
 				"outputMode":    config.TraceOutputMode,
+				// We will not add config.TraceOutput as label because it can contain
+				// "/" which is forbidden in labels.
 			},
 		},
 		Spec: gadgetv1alpha1.TraceSpec{
@@ -306,6 +313,7 @@ func CreateTrace(config *TraceConfig) (string, error) {
 			Filter:     filter,
 			RunMode:    "Manual",
 			OutputMode: config.TraceOutputMode,
+			Output:     config.TraceOutput,
 		},
 	}
 
