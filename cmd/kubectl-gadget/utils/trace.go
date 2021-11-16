@@ -33,6 +33,13 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/apimachinery/pkg/watch"
+	watchtools "k8s.io/client-go/tools/watch"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/fields"
+
 	gadgetv1alpha1 "github.com/kinvolk/inspektor-gadget/pkg/api/v1alpha1"
 	"github.com/kinvolk/inspektor-gadget/pkg/k8sutil"
 )
@@ -43,6 +50,11 @@ const (
 	// copy of the trace on each node will share the same id.
 	GLOBAL_TRACE_ID = "global-trace-id"
 	traceTimeout    = 2 * time.Second
+	// This value is used by dynamicClient API to target specific resource, traces
+	// in our case.
+	RESOURCE_GROUP  = "gadget.kinvolk.io"
+	RESOURCE_VERSION = "v1alpha1"
+	RESOURCE_RESOURCE = "traces"
 )
 
 // TraceConfig is used to contain information used to manage a trace.
@@ -141,12 +153,10 @@ func deleteTraces(traceRestClient *restclient.RESTClient, traceID string) {
 	}
 }
 
-// getRestClient returns the RESTClient associated with kubeRestConfig() for
-// APIPath /apis and GroupVersion &gadgetv1alpha1.GroupVersion.
-func getRestClient() (*restclient.RESTClient, error) {
+func makeRestConfig() (restclient.Config, error) {
 	restConfig, err := kubeRestConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Error while getting rest config: %w", err)
+		return restclient.Config{}, fmt.Errorf("Error while getting rest config: %w", err)
 	}
 
 	traceConfig := *restConfig
@@ -155,12 +165,39 @@ func getRestClient() (*restclient.RESTClient, error) {
 	traceConfig.NegotiatedSerializer = serializer.NewCodecFactory(scheme.Scheme)
 	traceConfig.UserAgent = restclient.DefaultKubernetesUserAgent()
 
+	return traceConfig, nil
+}
+
+// getRestClient returns the RESTClient associated with kubeRestConfig() for
+// APIPath /apis and GroupVersion &gadgetv1alpha1.GroupVersion.
+func getRestClient() (*restclient.RESTClient, error) {
+	traceConfig, err := makeRestConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	traceRestClient, err := restclient.UnversionedRESTClientFor(&traceConfig)
 	if err != nil {
 		return nil, fmt.Errorf("Error setting up trace REST client: %w", err)
 	}
 
 	return traceRestClient, nil
+}
+
+// getDynamicClient returns the DynamicClient associated with kubeRestConfig()
+// for APIPath /apis and GroupVersion &gadgetv1alpha1.GroupVersion.
+func getDynamicClient() (dynamic.Interface, error) {
+	traceConfig, err := makeRestConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(&traceConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return dynamicClient, nil
 }
 
 // createTraces creates a trace using Kubernetes REST API.
@@ -387,63 +424,181 @@ func SetTraceOperation(traceID string, operation string) error {
 	return err
 }
 
+// watchTrace returns a watcher on trace whom name was given as parameter.
+// This watcher can then be used to wait on State.Output modification.
+func watchTrace(name string) (watch.Interface, error) {
+	dynamicClient, err := getDynamicClient()
+	if err != nil {
+		return watch.NewEmptyWatch(), err
+	}
+
+	var watchOptions = metav1.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector("metadata.name", name).String(),
+	}
+
+	resource := schema.GroupVersionResource {
+		Group: RESOURCE_GROUP,
+		Version: RESOURCE_VERSION,
+		Resource: RESOURCE_RESOURCE,
+	}
+
+	watcher, err := dynamicClient.
+		Resource(resource).
+		Namespace("gadget").
+		Watch(context.TODO(), watchOptions)
+	if err != nil {
+		return watch.NewEmptyWatch(), err
+	}
+
+	return watcher, nil
+}
+
+// mapToTrace converts a map of anything to a Trace.
+// If the conversion failed, an error is returned.
+func mapToTrace(m map[string]interface{}) (gadgetv1alpha1.Trace, error) {
+	// We first convert the map to JSON.
+	jsonString, err := json.Marshal(m)
+	if err != nil {
+		return gadgetv1alpha1.Trace{}, err
+	}
+
+	var trace gadgetv1alpha1.Trace
+
+	// Then we convert the JSON to Trace.
+	err = json.Unmarshal(jsonString, &trace)
+	if err != nil {
+		return gadgetv1alpha1.Trace{}, err
+	}
+
+	return trace, nil
+}
+
 // waitForOutput loops over all trace whom ID is given as parameter waiting
 // until they are in the expected state.
 // After this function and if correct state was given as parameter, the trace
 // output should contain the needed information.
 func waitForOutput(traceID string, expectedState string) (gadgetv1alpha1.TraceList, error) {
-	start := time.Now()
+	var returnedTraces gadgetv1alpha1.TraceList
 
-RetryLoop:
-	for {
-		successNodeCount := 0
-		timeout := time.Since(start) > traceTimeout
-		nodeErrors := make(map[string]string)
-		nodeWarnings := make(map[string]string)
+	traces, err := getTraceListFromID(traceID)
+	if err != nil {
+		return gadgetv1alpha1.TraceList{}, err
+	}
 
-		traces, err := getTraceListFromID(traceID)
+	// Sadly, we cannot Watch() several object at the same time.
+	// So, we need to loop on all traces and watch each of them.
+	for _, t := range traces.Items {
+		// Hopefully, trace name are unique.
+		watcher, err := watchTrace(t.Name)
 		if err != nil {
 			return gadgetv1alpha1.TraceList{}, err
 		}
 
-		for _, i := range traces.Items {
-			if i.Status.OperationError != "" {
-				nodeErrors[i.Spec.Node] = i.Status.OperationError
-			} else if i.Status.OperationWarning != "" {
-				nodeWarnings[i.Spec.Node] = i.Status.OperationWarning
-				// TODO(francis) This code will not work if the trace is already in the
-				// expected state, for example if we decide to generate it twice.
-				// We need to add a cookie (and check it) to be sure the trace is ready.
-			} else if i.Status.State == expectedState {
-				successNodeCount++
-			} else {
-				// Consider Trace as timed out if it neither moved the state forward
-				// nor notified of an error or warning within the time window.
-				if timeout {
-					nodeErrors[i.Spec.Node] = fmt.Sprintf("No results received from trace within %v", traceTimeout)
-					continue
-				}
-
-				time.Sleep(100 * time.Millisecond)
-				continue RetryLoop
+		ctx, cancel := watchtools.ContextWithOptionalTimeout(context.Background(), traceTimeout)
+		watchEvent, err := watchtools.UntilWithoutRetry(ctx, watcher, func(event watch.Event) (bool, error){
+			// Deal particularly with error.
+			if event.Type == watch.Error {
+				return false, err
 			}
+
+			// We are only interested in Added and Modified event, as we want
+			// Status.State value to change.
+			// More particularly, we monitor Added event for gadget like
+			// process-collector and Modified for gadget like seccompadvisor.
+			if event.Type != watch.Added && event.Type != watch.Modified {
+				return false, nil
+			}
+
+			unstructured := event.Object.(*unstructured.Unstructured)
+			// UnstructuredContent translates an Unstructured to map[string]interface{}.
+			trace, err := mapToTrace(unstructured.UnstructuredContent())
+
+			if err != nil {
+				return false, err
+			}
+
+			if trace.Status.OperationWarning != "" {
+				fmt.Fprintf(os.Stderr, trace.Status.OperationWarning)
+				return false, nil
+			}
+
+			if trace.Status.OperationError != "" {
+				return false, errors.New(trace.Status.OperationError)
+			}
+
+			// If the trace is not in the state we expect, we are not interested.
+			if trace.Status.State != expectedState {
+				return false, nil
+			}
+
+			return true, nil
+		})
+		cancel()
+
+		if err != nil {
+			return gadgetv1alpha1.TraceList{}, err
 		}
 
-		printTraceFeedbackFunction := func(format string, args ...interface{}) { fmt.Fprintf(os.Stderr, format+"\n", args...) }
-
-		// Print errors even if some nodes succeeded.
-		defer printTraceFeedback(printTraceFeedbackFunction, nodeErrors)
-
-		// Don't print warnings if at least one node succeeded. This avoids showing
-		// warnings together with the actual output generated by other nodes.
-		if successNodeCount == 0 {
-			printTraceFeedback(printTraceFeedbackFunction, nodeWarnings)
-
-			return gadgetv1alpha1.TraceList{}, errors.New("Failed to run the gadget on all nodes: None of them succeeded")
+		trace, err := mapToTrace(watchEvent.Object.(*unstructured.Unstructured).UnstructuredContent())
+		if err != nil {
+			return gadgetv1alpha1.TraceList{}, err
 		}
 
-		return traces, nil
+		returnedTraces.Items = append(returnedTraces.Items, trace)
 	}
+
+	return returnedTraces, nil
+
+// RetryLoop:
+// 	for {
+// 		successNodeCount := 0
+// 		timeout := time.Since(start) > traceTimeout
+// 		nodeErrors := make(map[string]string)
+// 		nodeWarnings := make(map[string]string)
+//
+// 		traces, err := getTraceListFromID(traceID)
+// 		if err != nil {
+// 			return gadgetv1alpha1.TraceList{}, err
+// 		}
+//
+// 		for _, i := range traces.Items {
+// 			if i.Status.OperationError != "" {
+// 				nodeErrors[i.Spec.Node] = i.Status.OperationError
+// 			} else if i.Status.OperationWarning != "" {
+// 				nodeWarnings[i.Spec.Node] = i.Status.OperationWarning
+// 				// TODO(francis) This code will not work if the trace is already in the
+// 				// expected state, for example if we decide to generate it twice.
+// 				// We need to add a cookie (and check it) to be sure the trace is ready.
+// 			} else if i.Status.State == expectedState {
+// 				successNodeCount++
+// 			} else {
+// 				// Consider Trace as timed out if it neither moved the state forward
+// 				// nor notified of an error or warning within the time window.
+// 				if timeout {
+// 					nodeErrors[i.Spec.Node] = fmt.Sprintf("No results received from trace within %v", traceTimeout)
+// 					continue
+// 				}
+//
+// 				time.Sleep(100 * time.Millisecond)
+// 				continue RetryLoop
+// 			}
+// 		}
+//
+// 		printTraceFeedbackFunction := func(format string, args ...interface{}) { fmt.Fprintf(os.Stderr, format+"\n", args...) }
+//
+// 		// Print errors even if some nodes succeeded.
+// 		defer printTraceFeedback(printTraceFeedbackFunction, nodeErrors)
+//
+// 		// Don't print warnings if at least one node succeeded. This avoids showing
+// 		// warnings together with the actual output generated by other nodes.
+// 		if successNodeCount == 0 {
+// 			printTraceFeedback(printTraceFeedbackFunction, nodeWarnings)
+//
+// 			return gadgetv1alpha1.TraceList{}, errors.New("Failed to run the gadget on all nodes: None of them succeeded")
+// 		}
+//
+// 		return traces, nil
+// 	}
 }
 
 // PrintTraceOutputFromStream is used to print trace output using generic
@@ -627,7 +782,7 @@ func RunTraceAndPrintStatusOutput(config *TraceConfig, customResultsDisplay func
 		return fmt.Errorf("error creating trace: %w", err)
 	}
 
-	defer DeleteTrace(traceID)
+// 	defer DeleteTrace(traceID)
 
 	return PrintTraceOutputFromStatus(traceID, config.TraceOutputState, customResultsDisplay)
 }
