@@ -1,0 +1,38 @@
+name: "Set useful environment variables (IMAGE_TAG and CONTAINER_REPO)"
+description: "IMAGE_TAG will be latest if current branch is main.
+  Otherwise it will be the name of the branch (with '/' replaced by '-') or the tag.
+  CONTAINER_REPO will be set as env.registry/intputs.container-image, where inputs.container-image defaults to env.CONTAINER_IMAGE_CI"
+
+inputs:
+  container-image:
+    description: "Container image name to use"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set CONTAINER_REPO
+      shell: bash
+      run: |
+        if [ -z "${{ env.REGISTRY }}" || -z "${{ inputs.container-image }}" ]; then
+          echo 'None of env.REGISTRY ("${{ env.REGISTRY }}") and inputs.container-image ("${{ inputs.container-image }}") should be empty! Set them before calling this action'
+
+          exit 1
+        fi
+
+        echo CONTAINER_REPO="${{ env.REGISTRY }}/${{ inputs.container-image }}" >> $GITHUB_ENV
+    - name: Set IMAGE_TAG
+      shell: bash
+      run: |
+        tag=${{ github.ref }}
+
+        if [ ${tag} == 'refs/heads/main' ]; then
+          tag='latest'
+        else
+          # Remove refs/*/.
+          tag=${tag#refs/*/}
+          # Replace / by - to avoid docker push crying.
+          tag=${tag/\//-}
+        fi
+
+        echo IMAGE_TAG=${tag} >> $GITHUB_ENV
