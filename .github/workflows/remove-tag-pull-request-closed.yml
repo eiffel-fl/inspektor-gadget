@@ -13,10 +13,26 @@ jobs:
     name: Remove tag for ci image.
     runs-on: ubuntu-latest
     steps:
-    - name: Check out code
-      uses: actions/checkout@v1
     - name: Set IMAGE_TAG.
-      uses: ./.github/actions/set-image-tag
+      run: |
+        # We cannot use ./.github/actions/set-image-tag for this because we
+        # need to check github.event_name since we use this code for branch
+        # deleting as well as PR closing:
+        if [ ${{ github.event_name }} == 'pull_request' ]; then
+          tag=${{ github.head.ref }}
+        elif [ ${{ github.event_name }} == 'delete' ]; then
+          tag=${{ github.ref }}
+        else
+          echo "This should really not happen!"
+          exit 1
+        fi
+
+        # Remove refs/*/.
+        tag=${tag#refs/*/}
+        # Replace / by - to avoid docker push crying.
+        tag=${tag/\//-}
+
+        echo IMAGE_TAG=${tag} >> $GITHUB_ENV
     - name: Remove tag for ci image
       run: |
         # Heavily inspired from:
