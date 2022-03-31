@@ -10,10 +10,10 @@ on:
 
 jobs:
   remove-tag-from-ci-registry:
-    name: Remove tag for ${{ env.REGISTRY }}/${{ env.CONTAINER_IMAGE }}
+    name: Remove tag for ci image.
     runs-on: ubuntu-latest
     steps:
-    - name: Remove tag for ${{ env.REGISTRY }}/${{ env.CONTAINER_IMAGE }}
+    - name: Remove tag for ci image
       run: |
         # Heavily inspired from:
         # https://github.com/byrnedo/docker-reg-tool/blob/23292d234289b1fd114b53786c9e4f9fece3674b/docker_reg_tool#L108
@@ -29,7 +29,7 @@ jobs:
         echo "image: ${image}"
         echo "tag: ${tag}"
 
-        creds="Authorization: Basic $(echo -n "${{ ${{ github.actor }} }}:${{ secrets.GITHUB_TOKEN }}" | base64)"
+        creds="Authorization: Basic $(echo -n "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" | base64)"
 
         response=$(curl --header $creds -v -s -H "Accept:application/vnd.docker.distribution.manifest.v2+json" "${registry}/v2/${image}/manifests/${tag}" 2>&1)
         digest=$(echo "${response}" | grep -i "< Docker-Content-Digest:" |awk '{ print $3 }' || echo "")
