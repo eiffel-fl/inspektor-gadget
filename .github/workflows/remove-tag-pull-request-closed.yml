@@ -19,7 +19,7 @@ jobs:
         # need to check github.event_name since we use this code for branch
         # deleting as well as PR closing:
         if [ ${{ github.event_name }} == 'pull_request' ]; then
-          tag=${{ github.head.ref }}
+          tag=${{ github.head_ref }}
         elif [ ${{ github.event_name }} == 'delete' ]; then
           tag=${{ github.ref }}
         else
