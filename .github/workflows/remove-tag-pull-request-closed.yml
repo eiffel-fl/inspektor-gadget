@@ -10,10 +10,10 @@ on:
 
 jobs:
   remove-tag-from-ci-registry:
-    name: Remove tag for ${{ env.REGISTRY}}/${{ env.CONTAINER_IMAGE }}
+    name: Remove tag for ${{ env.REGISTRY }}/${{ env.CONTAINER_IMAGE }}
     runs-on: ubuntu-latest
     steps:
-    - name: Remove tag for ${{ env.REGISTRY}}/${{ env.CONTAINER_IMAGE }}
+    - name: Remove tag for ${{ env.REGISTRY }}/${{ env.CONTAINER_IMAGE }}
       run: |
         # Heavily inspired from:
         # https://github.com/byrnedo/docker-reg-tool/blob/23292d234289b1fd114b53786c9e4f9fece3674b/docker_reg_tool#L108
