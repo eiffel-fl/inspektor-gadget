@@ -18,7 +18,7 @@ jobs:
         # We cannot use ./.github/actions/set-image-tag for this because we
         # need to check github.event_name since we use this code for branch
         # deleting as well as PR closing:
-        if [ ${{ github.event_name }} == 'push' ]; then
+        if [ ${{ github.event_name }} == 'pull_request' ]; then
           tag=${{ github.ref }}
         elif [ ${{ github.event_name }} == 'delete' ]; then
           tag=${{ github.head.ref }}
