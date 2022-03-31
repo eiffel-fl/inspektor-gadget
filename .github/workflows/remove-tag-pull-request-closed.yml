@@ -13,6 +13,8 @@ jobs:
     name: Remove tag for ci image.
     runs-on: ubuntu-latest
     steps:
+    - name: Set IMAGE_TAG.
+      uses: ./.github/actions/set-image-tag
     - name: Remove tag for ci image
       run: |
         # Heavily inspired from:
@@ -23,7 +25,7 @@ jobs:
         image=${{ env.CONTAINER_IMAGE }}
         # Taken from:
         # https://github.community/t/how-to-get-pr-branch-name-in-github-actions/16598/7
-        tag=${{ github.event.ref }}
+        tag=${{ env.IMAGE_TAG }}
 
         echo "registry: ${registry}"
         echo "image: ${image}"
