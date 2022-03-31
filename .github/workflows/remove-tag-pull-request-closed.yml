@@ -16,10 +16,11 @@ jobs:
     - name: Set IMAGE_TAG.
       run: |
         # We cannot use ./.github/actions/set-image-tag for this because we
-        # need to check github.event.type:
-        if [ ${{ github.event.type }} == 'DeleteEvent' ]; then
+        # need to check github.event_name since we use this code for branch
+        # deleting as well as PR closing:
+        if [ ${{ github.event_name }} == 'push' ]; then
           tag=${{ github.ref }}
-        elif [ ${{ github.event.type }} == 'PullRequestEvent' ]; then
+        elif [ ${{ github.event_name }} == 'delete' ]; then
           tag=${{ github.head.ref }}
         else
           echo "This should really not happen!"
