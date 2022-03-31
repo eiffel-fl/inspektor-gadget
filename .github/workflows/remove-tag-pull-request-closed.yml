@@ -32,7 +32,6 @@ jobs:
         tag=${tag/\//-}
 
         echo IMAGE_TAG=${tag} >> $GITHUB_ENV
-      uses: ./.github/actions/set-image-tag
     - name: Remove tag for ci image
       run: |
         # Heavily inspired from:
