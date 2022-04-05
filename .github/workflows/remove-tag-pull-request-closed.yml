@@ -8,8 +8,6 @@ jobs:
   remove-tag-from-ci-registry:
     name: Remove tag for CI image
     runs-on: ubuntu-latest
-    permissions:
-      packages: delete
     steps:
     - name: Set IMAGE_TAG.
       run: |
