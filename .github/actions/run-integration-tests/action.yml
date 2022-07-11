@@ -5,6 +5,9 @@ inputs:
   registry:
     description: 'Server address of registry where integration tests container image will be pushed'
     required: false
+  container_repo:
+    description: 'The repository where integration tests container image will be pushed'
+    required: true
   username:
     description: 'Username used to log against the registry'
     required: false
@@ -86,4 +89,4 @@ runs:
       shell: bash
       if: startsWith(github.ref, 'refs/tags/v')
       run: |
-        make -C integration push
+        CONTAINER_REPO=${{ inputs.container_repo }} make -C integration push
