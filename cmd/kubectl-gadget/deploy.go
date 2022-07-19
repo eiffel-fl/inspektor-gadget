@@ -21,8 +21,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kinvolk/inspektor-gadget/cmd/kubectl-gadget/utils"
+	"github.com/kinvolk/inspektor-gadget/pkg/k8sutil"
 	"github.com/kinvolk/inspektor-gadget/pkg/resources"
 	"github.com/spf13/cobra"
 
@@ -34,11 +36,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/tools/cache"
+	watchtools "k8s.io/client-go/tools/watch"
+	v1pod "k8s.io/kubernetes/pkg/api/v1/pod"
 	"sigs.k8s.io/yaml"
 )
 
@@ -59,6 +65,7 @@ var (
 	livenessProbeInitialDelay int32
 	fallbackPodInformer       bool
 	printOnly                 bool
+	deployWait                bool
 )
 
 func init() {
@@ -97,6 +104,11 @@ func init() {
 		"print-only", "",
 		false,
 		"only print YAML of resources")
+	deployCmd.PersistentFlags().BoolVarP(
+		&deployWait,
+		"deploy-wait", "",
+		true,
+		"wait for gadget pod to be ready")
 	rootCmd.AddCommand(deployCmd)
 }
 
@@ -268,6 +280,68 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("problem while creating resource: %w", err)
 			}
+		}
+	}
+
+	if !printOnly && deployWait {
+		k8sClient, err := k8sutil.NewClientsetFromConfigFlags(utils.KubernetesConfigFlags)
+		if err != nil {
+			return utils.WrapInErrSetupK8sClient(err)
+		}
+
+		nodes, err := k8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return fmt.Errorf("problem while listing nodes: %w", err)
+		}
+
+		// The below code (particularly how to use UntilWithSync) is highly
+		// inspired from kubectl wait source code:
+		// https://github.com/kubernetes/kubectl/blob/b5fe0f6e9c65ea95a2118746b7e04822255d76c2/pkg/cmd/wait/wait.go#L364
+		podInterface := k8sClient.CoreV1().Pods(gadgetNamespace)
+		lw := &cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				options.LabelSelector = "k8s-app=gadget"
+
+				return podInterface.List(context.TODO(), options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				options.LabelSelector = "k8s-app=gadget"
+
+				return podInterface.Watch(context.TODO(), options)
+			},
+		}
+
+		ctx, cancel := watchtools.ContextWithOptionalTimeout(context.TODO(), time.Duration(timeout)*time.Second)
+		defer cancel()
+
+		readyPods := 0
+		_, err = watchtools.UntilWithSync(ctx, lw, &v1.Pod{}, nil, func(event watch.Event) (bool, error) {
+			switch event.Type {
+			case watch.Deleted:
+				return false, fmt.Errorf("no pod in %s namespace should be deleted", gadgetNamespace)
+			case watch.Modified:
+				pod, _ := event.Object.(*v1.Pod)
+
+				if v1pod.IsPodReady(pod) {
+					readyPods++
+				}
+
+				// We cannot list the pods after we asked for their creation because the
+				// list could be empty.
+				// But, we deploy one pod per node, so we return succesfully when the
+				// number of ready pods equals the number of nodes.
+				return len(nodes.Items) == readyPods, nil
+			case watch.Error:
+				// Deal particularly with error.
+				return false, fmt.Errorf("received event is an error one: %v", event)
+			default:
+				// We are not interested in other event types.
+				return false, nil
+			}
+		})
+
+		if err != nil {
+			return err
 		}
 	}
 

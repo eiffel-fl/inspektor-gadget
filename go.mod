@@ -41,7 +41,10 @@ require (
 	sigs.k8s.io/yaml v1.2.0
 )
 
-require github.com/moby/moby v20.10.17+incompatible
+require (
+	github.com/moby/moby v20.10.17+incompatible
+	k8s.io/kubernetes v1.13.0
+)
 
 require (
 	cloud.google.com/go v0.81.0 // indirect
