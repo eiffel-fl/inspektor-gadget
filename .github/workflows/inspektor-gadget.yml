@@ -692,6 +692,12 @@ jobs:
         release_name: Release ${{ github.ref }}
     - name: Get all artifacts.
       uses: actions/download-artifact@v2
+    - name: Rename all artifacts to *-${{ github.ref }}.tar.gz
+      shell: bash
+      run: |
+        for i in *-gadget-*-*-tar-gz/*-gadget-*-*.tar.gz; do
+          mv $i $(basename $i .tar.gz)-${{ github.ref }}.tar.gz
+        done
     - name: Upload Gadget Release *-gadget-*-*.tar.gz
       uses: csexton/release-asset-action@v2
       with:
