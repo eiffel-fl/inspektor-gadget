@@ -672,8 +672,6 @@ jobs:
     needs:
       - documentation-checks
       - lint
-      - test-integration-minikube
-      - test-integration-aro
       - test-local-gadget
       - check-readme-up-to-date
       - build-examples
@@ -695,6 +693,7 @@ jobs:
     - name: Rename all artifacts to *-${{ github.ref }}.tar.gz
       shell: bash
       run: |
+        ls
         for i in *-gadget-*-*-tar-gz/*-gadget-*-*.tar.gz; do
           mv $i $(basename $i .tar.gz)-${{ github.ref }}.tar.gz
         done
