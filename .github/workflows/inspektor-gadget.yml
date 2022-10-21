@@ -672,8 +672,6 @@ jobs:
     needs:
       - documentation-checks
       - lint
-      - test-integration-minikube
-      - test-integration-aro
       - test-local-gadget
       - check-readme-up-to-date
       - build-examples
@@ -686,16 +684,18 @@ jobs:
     - uses: actions/checkout@v3
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1.0.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}
+        name: Release ${{ github.ref }}
     - name: Get all artifacts.
       uses: actions/download-artifact@v2
+    - name: Rename all artifacts to *-${{ env.GITHUB_REF_NAME }}.tar.gz
+      shell: bash
+      run: |
+        for i in *-gadget-*-*-tar-gz/*-gadget-*-*.tar.gz; do
+          mv $i $(basename $i .tar.gz)-${GITHUB_REF_NAME}.tar.gz
+        done
     - name: Upload Gadget Release *-gadget-*-*.tar.gz
       uses: csexton/release-asset-action@v2
       with:
