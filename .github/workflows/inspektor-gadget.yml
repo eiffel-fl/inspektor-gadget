@@ -672,8 +672,6 @@ jobs:
     needs:
       - documentation-checks
       - lint
-      - test-integration-minikube
-      - test-integration-aro
       - test-local-gadget
       - check-readme-up-to-date
       - build-examples
