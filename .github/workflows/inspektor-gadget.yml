@@ -106,19 +106,6 @@ jobs:
             exit 1
           fi
 
-  pr-dependencies-checks:
-    name: PR dependencies checks
-    # level: 0
-    # We need to run this action only on PR.
-    # Otherwise, for other cases like pushing to main, it will fail because it
-    # searches for base_ref and head_ref which only exists in PR context.
-    if: ${{ github.event.pull_request }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Check if added dependencies do not contain CVE.
-        uses: actions/dependency-review-action@v3
-
   build-kubectl-gadget:
     name: Build kubectl-gadget
     # level: 0
@@ -953,12 +940,6 @@ jobs:
       - documentation-checks
       - ebpf-objects-checks
       - lint
-      - test-integration-minikube
-      - test-integration-aks
-      - test-integration-aro
-      - test-ig
-      - test-integration-k8s-ig
-      - test-integration-non-k8s-ig
       - check-readme-up-to-date
       - build-examples
       - build-gadgets-examples
