@@ -243,6 +243,77 @@ jobs:
         name: ${{ matrix.ig-target }}-tar-gz
         path: /home/runner/work/inspektor-gadget/inspektor-gadget/${{ matrix.ig-target }}.tar.gz
 
+  build-ig-container-images:
+    name: ig image
+    # level: 0
+    runs-on: ubuntu-latest
+    permissions:
+      # allow publishing container image
+      # in case of public fork repo/packages permissions will always be read
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ linux ]
+        # For the moment, we only support these two platforms.
+        platform: [ arm64, amd64 ]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Cache Docker layers
+      uses: actions/cache@v3.3.1
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-docker-${{ matrix.type }}-${{ matrix.platform }}-${{ hashFiles(format('Dockerfiles/gadget-{0}.Dockerfile', matrix.type)) }}
+        restore-keys: |
+          ${{ runner.os }}-docker-${{ matrix.type }}-${{ matrix.platform }}-
+    - name: Login to Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Set container repository and determine image tag
+      id: set-repo-determine-image-tag
+      uses: ./.github/actions/set-container-repo-and-determine-image-tag
+      with:
+        registry: ${{ env.REGISTRY }}
+        container-image: 'ig'
+        co-re: false
+    - name: Build ig container image as artifacts
+      uses: docker/build-push-action@v4
+      with:
+        context: /home/runner/work/inspektor-gadget/inspektor-gadget/
+        file: /home/runner/work/inspektor-gadget/inspektor-gadget/Dockerfiles/ig.Dockerfile
+        outputs: type=docker,dest=/tmp/gadget-container-image-${{ matrix.type }}-${{ matrix.os }}-${{ matrix.platform }}.tar
+        tags: ${{ steps.set-repo-determine-image-tag.outputs.container-repo }}:${{ steps.set-repo-determine-image-tag.outputs.image-tag }}
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new
+        platforms: ${{ matrix.os }}/${{ matrix.platform }}
+    - name: Publish gadget ig ${{ matrix.os }} ${{ matrix.platform }} container image as artifacts
+      uses: actions/upload-artifact@master
+      with:
+        name: ig-${{ matrix.os }}-${{ matrix.platform }}.tar
+        path: /tmp/ig-${{ matrix.os }}-${{ matrix.platform }}.tar
+        retention-days: 1
+    # build time will not be increased with this workflow because of internal cache
+    # buildx is used here since it allows push-by-digest to avoid platform specific tags
+    - name: Publish ig container image to registry
+      id: publish-gadget-container-images
+      if: github.event_name != 'pull_request'
+      uses: docker/build-push-action@v4
+      with:
+        context: /home/runner/work/inspektor-gadget/inspektor-gadget/
+        file: /home/runner/work/inspektor-gadget/inspektor-gadget/Dockerfiles/ig.Dockerfile
+        outputs: type=registry,name=${{ steps.set-repo-determine-image-tag.outputs.container-repo }},push=true,push-by-digest=true
+        cache-from: type=local,src=/tmp/.buildx-cache-new
+        platforms: ${{ matrix.os }}/${{ matrix.platform }}
+
   build-gadget-container-images:
     name: gadget img
     # level: 0
