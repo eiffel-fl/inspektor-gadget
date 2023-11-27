@@ -145,7 +145,7 @@ jobs:
           make EBPF_BUILDER=${{ needs.build-helper-images.outputs.ebpf_builder_image }} ebpf-objects
           changes="$(git status --porcelain)"
           if [ -n "$changes" ] ; then
-            echo "$changes"
+            >&2 echo "$changes"
             exit 1
           fi
       - name: Check that testdata is updated
@@ -153,7 +153,7 @@ jobs:
           make testdata
           changes="$(git status --porcelain)"
           if [ -n "$changes" ] ; then
-            echo "$changes"
+            >&2 echo "$changes"
             exit 1
           fi
 
@@ -169,6 +169,26 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check if added dependencies do not contain CVE.
         uses: actions/dependency-review-action@v3
+
+  public-key-check:
+    name: Public key check
+    # level: 0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+      - name: Check if public key is up-to-date.
+        env:
+          COSIGN_PASSWORD: '${{ secrets.COSIGN_PASSWORD }}'
+          COSIGN_PRIVATE_KEY: '${{ secrets.COSIGN_PRIVATE_KEY }}'
+        run: |
+          cosign public-key --key env://COSIGN_PRIVATE_KEY > inspektor-gadget.pub
+          changes="$(git status --porcelain)"
+          if [ -n "$changes" ] ; then
+            >&2 echo "$changes"
+            exit 1
+          fi
 
   build-clients:
     name: clients
