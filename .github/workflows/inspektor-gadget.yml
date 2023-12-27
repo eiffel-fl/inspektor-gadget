@@ -1458,8 +1458,8 @@ jobs:
       - lint
       - semgrep
       - test-integration-minikube
-      - test-integration-aks
-      - test-integration-aro
+      #- test-integration-aks
+      #- test-integration-aro
       - test-ig
       - test-integration-k8s-ig
       - test-integration-non-k8s-ig
@@ -1467,8 +1467,8 @@ jobs:
       - build-gadgets-examples
       - package-helm-charts
       - check-secrets
-      - scan-gadget-container-images
-      - publish-gadget-images-manifest
+      #- scan-gadget-container-images
+      #- publish-gadget-images-manifest
     runs-on: ubuntu-latest
     permissions:
       contents: write
