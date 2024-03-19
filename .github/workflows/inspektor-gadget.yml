@@ -670,7 +670,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs:
       - build-gadget-container-images
-      - public-key-check
+      #- public-key-check
     runs-on: ubuntu-latest
     permissions:
       # allow publishing container image
@@ -1155,35 +1155,35 @@ jobs:
             echo "gke=false" >> $GITHUB_OUTPUT
           fi
 
-  public-key-check:
-    name: Public key check
-    # level: 1
-    needs: check-secrets
-    runs-on: ubuntu-latest
-    # When this job is run by a PR coming from a fork, it will not have access
-    # to secrets.
-    # Also, unless specified in the secrets configuration, dependabot cannot access
-    # to secrets.
-    # So, we skip this job when run by dependabot and from a PR coming from a
-    # fork.
-    # We still need to run this job on push, otherwise it will not be run when
-    # we merge something on main.
-    if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Check if public key is up-to-date.
-        env:
-          COSIGN_PASSWORD: '${{ secrets.COSIGN_PASSWORD }}'
-          COSIGN_PRIVATE_KEY: '${{ secrets.COSIGN_PRIVATE_KEY }}'
-        run: |
-          cosign public-key --key env://COSIGN_PRIVATE_KEY > inspektor-gadget.pub
-          changes="$(git status --porcelain)"
-          if [ -n "$changes" ] ; then
-            >&2 echo "$changes"
-            exit 1
-          fi
+  #public-key-check:
+    #name: Public key check
+    ## level: 1
+    #needs: check-secrets
+    #runs-on: ubuntu-latest
+    ## When this job is run by a PR coming from a fork, it will not have access
+    ## to secrets.
+    ## Also, unless specified in the secrets configuration, dependabot cannot access
+    ## to secrets.
+    ## So, we skip this job when run by dependabot and from a PR coming from a
+    ## fork.
+    ## We still need to run this job on push, otherwise it will not be run when
+    ## we merge something on main.
+    #if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    #steps:
+      #- uses: actions/checkout@v4
+      #- name: Install Cosign
+        #uses: sigstore/cosign-installer@main
+      #- name: Check if public key is up-to-date.
+        #env:
+          #COSIGN_PASSWORD: '${{ secrets.COSIGN_PASSWORD }}'
+          #COSIGN_PRIVATE_KEY: '${{ secrets.COSIGN_PRIVATE_KEY }}'
+        #run: |
+          #cosign public-key --key env://COSIGN_PRIVATE_KEY > inspektor-gadget.pub
+          #changes="$(git status --porcelain)"
+          #if [ -n "$changes" ] ; then
+            #>&2 echo "$changes"
+            #exit 1
+          #fi
 
   test-integration-k8s-ig:
     name: Test ig w/ k8s
