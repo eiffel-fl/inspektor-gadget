@@ -4,13 +4,15 @@
     "config:recommended"
   ],
   "labels": ["dependencies"],
+  "postUpdateOptions" : [
+    "gomodTidy"
+  ],
   "packageRules": [
     {
       "matchPackagePatterns": ["go"],
       "addLabels": ["go"]
     },
     {
-      "matchFileNames": ["examples/**"],
       "matchManagers": ["gomod"],
       "matchDepTypes": ["indirect"],
       "enabled": true
