@@ -30,7 +30,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/opencontainers/runtime-spec v1.2.0
 	github.com/prometheus/client_golang v1.19.1
-	github.com/s3rj1k/go-fanotify/fanotify v0.0.0-20210917134616-9c00a300bb7a
+	github.com/s3rj1k/go-fanotify/fanotify v0.0.0-20240229202106-bca3154da60a
 	github.com/seccomp/libseccomp-golang v0.10.0 // indirect
 	github.com/shopspring/decimal v1.4.0
 	github.com/sirupsen/logrus v1.9.3
