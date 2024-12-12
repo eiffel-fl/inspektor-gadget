@@ -10,7 +10,7 @@ require (
 	github.com/containers/common v0.59.1
 	github.com/containers/image/v5 v5.31.0
 	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/cyphar/filepath-securejoin v0.2.5
+	github.com/cyphar/filepath-securejoin v0.3.5
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/distribution/reference v0.6.0
 	github.com/docker/cli v26.1.4+incompatible
@@ -47,7 +47,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.27.0
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
 	golang.org/x/sync v0.7.0
-	golang.org/x/sys v0.21.0
+	golang.org/x/sys v0.28.0
 	golang.org/x/term v0.21.0
 	golang.org/x/text v0.16.0
 	google.golang.org/grpc v1.63.2
