@@ -5,7 +5,7 @@ go 1.22.2
 require (
 	github.com/cilium/ebpf v0.15.0
 	github.com/inspektor-gadget/inspektor-gadget v0.28.1
-	github.com/opencontainers/runtime-spec v1.2.0
+	github.com/opencontainers/runtime-spec v1.2.1
 	github.com/quay/claircore v1.5.28
 	k8s.io/api v0.30.2
 	k8s.io/apimachinery v0.30.2
