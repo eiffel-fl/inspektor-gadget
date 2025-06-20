@@ -2280,7 +2280,6 @@ jobs:
       - lint
       - semgrep
       - test-integration-minikube
-      - test-integration-aks
       - test-components
       - build-ig-cwe
       - test-ig
